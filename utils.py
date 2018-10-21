@@ -4,6 +4,7 @@ import numpy as np
 import MeCab
 import pickle
 import random
+import json
 
 from keras.preprocessing import sequence
 from keras.preprocessing.text import text_to_word_sequence, Tokenizer
@@ -55,10 +56,8 @@ def save_config(path:str, save_dict:dict):
     """
         sava_config
     """
-    result = [f"{k} = {v}" for k,v in save_dict.items()]
-    with open(path,"w") as fo:
-        fo.write("Config\n")
-        fo.write("\n".join(result))
+    with open(path, "w") as fo:
+        json.dump(save_dict, fo)
     return
 
 def create_words_set(sent_list:list):

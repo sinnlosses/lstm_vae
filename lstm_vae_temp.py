@@ -176,7 +176,7 @@ if __name__ == '__main__':
     save_model_fname = os.path.join(model_dir, "model.json")
     save_weights_fname = os.path.join(weights_dir, "weights.hdf5")
     save_callback_weights_fname = os.path.join(weights_dir,"weights_{epoch:03d}_{loss:.2f}.hdf5")
-    save_config_fname = os.path.join(model_dir, "config.txt")
+    save_config_fname = os.path.join(model_dir, "config.json")
     save_loss_fname = os.path.join(model_dir, "loss.png")
     data_check()
 

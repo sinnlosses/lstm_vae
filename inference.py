@@ -1,59 +1,57 @@
-# coding: utf-8
+
+import os
+import re
+import random
+import sys
+import csv
+import json
 import numpy as np
+import keras
+from keras.preprocessing import sequence
+from keras.layers import Input, Dense, Embedding, LSTM
+from keras.layers.wrappers import TimeDistributed
+from keras.models import Model, model_from_json
+import pickle
+from utils import inference
 
 
-def decode_sequence(states_value, decoder_adapter_model, rnn_decoder_model, num_decoder_tokens, token2id, id2token, max_seq_length):
-    """
-    Decoding adapted from this example:
-    https://blog.keras.io/a-ten-minute-introduction-to-sequence-to-sequence-learning-in-keras.html
+if __name__ == '__main__':
+    model_dir = ""
+    model_fname = f"{model_dir}/model.json"
+    weights_dir = f"{model_dir}/weights"
+    weights = "weights.hdf5"
+    weights_fname = f"{weights_dir}/{weights}"
+    word2id_fname = f"{model_dir}/word2id.p"
+    config_json = f"{model_dir}/config.json"
+    save_sample_fname = f"{model_dir}/sampling_{weights}.csv"
 
-    :param states_value:
-    :param decoder_adapter_model: reads text representation, makes the first prediction, yields states after the first RNN's step
-    :param rnn_decoder_model: reads previous states and makes one RNN step
-    :param num_decoder_tokens:
-    :param token2id: dict mapping words to ids
-    :param id2token: dict mapping ids to words
-    :param max_seq_length: the maximum length of the sequence
-    :return:
-    """
+    with open(word2id_fname,"rb") as fi:
+        word_to_id, is_reversed = pickle.load(fi)
+    id_to_word = {i:w for w,i in word_to_id.items()}
 
-    # generate empty target sequence of length 1
-    target_seq = np.zeros((1, 1, num_decoder_tokens))
+    with open(config_json, "r") as fi:
+        config = json.load(fi)
+    with open(model_fname,"r") as fi:
+        model_json = fi.read()
+    gen_model = model_from_json(model_json)
+    gen_model.load_weights(weights_fname)
 
-    # populate the first token of the target sequence with the start character
-    target_seq[0, 0, token2id["\t"]] = 1.0
+    n_samples = 10
+    maxlen = config["maxlen"]
+    latent_dim = config["latent_dim"]
 
-    # sampling loop for a batch of sequences
-    # (to simplify, here we assume a batch of size 1)
-    stop_condition = False
-    decoded_sentence = ""
-
-    first_time = True
-    h, c = None, None
-
-    while not stop_condition:
-
-        if first_time:
-            # feeding in states sampled with the mean and std provided by encoder
-            # and getting current LSTM states to feed in to the decoder at the next step
-            output_tokens, h, c = decoder_adapter_model.predict([target_seq, states_value])
-            first_time = False
-        else:
-            # reading output token
-            output_tokens, h, c = rnn_decoder_model.predict([target_seq, h, c])
-
-        # sample a token
-        sampled_token_index = np.argmax(output_tokens[0, -1, :])
-        sampled_token = id2token[sampled_token_index]
-        decoded_sentence += sampled_token + " "
-
-        # exit condition: either hit max length
-        # or find stop character.
-        if sampled_token == "<end>" or len(decoded_sentence) > max_seq_length:
-            stop_condition = True
-
-        # Update the target sequence (of length 1).
-        target_seq = np.zeros((1, 1, num_decoder_tokens))
-        target_seq[0, 0, sampled_token_index] = 1.
-
-    return decoded_sentence
+    print('----- Generating text -----')
+    surface_morph = []
+    for n_sample in range(n_samples):
+        sent_surface, sent_morph = inference(
+                                        gen_model,
+                                        maxlen,
+                                        latent_dim,
+                                        word_to_id,
+                                        id_to_word)
+        print(sent_surface)
+        surface_morph.append([sent_surface,sent_morph])
+    with open(save_sample_fname,"w") as fo:
+        writer = csv.writer(fo)
+        writer.writerows(surface_morph)
+        
