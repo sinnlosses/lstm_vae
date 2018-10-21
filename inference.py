@@ -36,7 +36,7 @@ if __name__ == '__main__':
     gen_model = model_from_json(model_json)
     gen_model.load_weights(weights_fname)
 
-    n_samples = 10
+    n_samples = 30
     maxlen = int(config["maxlen"])
     latent_dim = int(config["latent_dim"])
 

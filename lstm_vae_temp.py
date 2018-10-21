@@ -12,7 +12,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = '0'
 from keras import backend as K
 from keras import objectives
 from keras.layers import Input, LSTM, Embedding
-from keras.layers.core import Dense, Lambda
+from keras.layers.core import Dense, Lambda, Dropout
 from keras.layers.wrappers import TimeDistributed
 from keras.models import Model, model_from_json
 from keras.callbacks import LambdaCallback, ModelCheckpoint, EarlyStopping
@@ -60,10 +60,13 @@ def create_lstm_vae(maxlen:int,
                     trainable=True,
                     name='emb')
     x_embed = emb(x)
+    x_dropped = Dropout(0.5)(x_embed)
     # LSTM encoding
     h = LSTM(units=intermediate_dim,
              return_sequences=False,
-             name='enc_lstm')(x_embed)
+             dropout=0.5,
+             recurrent_dropout=0.5,
+             name='enc_lstm')(x_dropped)
     # VAE Z layer
     z_mean = Dense(units=latent_dim, name='z_mean')(h)
     z_log_sigma = Dense(units=latent_dim, name='z_log_sigma')(h)
@@ -88,6 +91,8 @@ def create_lstm_vae(maxlen:int,
     # decoded LSTM layer
     decoder_h = LSTM(intermediate_dim,
                      return_sequences=True,
+                     dropout=0.2,
+                     recurrent_dropout=0.2,
                      name='dec_lstm')
 
     # todo: not sure if this initialization is correct
@@ -157,7 +162,7 @@ if __name__ == '__main__':
     maxlen = 40
     mecab_lv = 3
     save_weight_period = 20
-    epochs = 10
+    epochs = 200
     batch_size = 32
     intermediate_dim = 64
     latent_dim = 32
@@ -272,6 +277,9 @@ if __name__ == '__main__':
     with open(save_w2i_fname, "wb") as fo:
         pickle.dump([word_to_id, is_reversed], fo)
 
+    es_cb = EarlyStopping(patience=30,
+                          verbose=1,
+                          mode='auto')
     print_callback = LambdaCallback(on_epoch_end=on_epoch_end)
     model_checkpoint = ModelCheckpoint(filepath=save_callback_weights_fname,
                                         save_weights_only=True,
@@ -283,10 +291,13 @@ if __name__ == '__main__':
              epochs=epochs,
              verbose=1,
              batch_size=batch_size,
-             callbacks=[print_callback, model_checkpoint])
+             validation_split=0.2,
+             callbacks=[print_callback])
     loss_history = fit.history['loss']
+    val_loss_history = fit.history['val_loss']
     gen.save_weights(save_weights_fname)
     gen_json = gen.to_json()
     with open(save_model_fname,"w") as fo:
         fo.write(gen_json)
-    plot_history_loss(save_loss_fname,loss_history)
+    plot_history_loss(save_loss_fname,loss_history, val_loss_history)
+    import pdb; pdb.set_trace()
