@@ -16,7 +16,7 @@ from utils import inference
 
 
 if __name__ == '__main__':
-    model_dir = ""
+    model_dir = "./templete_model/model_temp"
     model_fname = f"{model_dir}/model.json"
     weights_dir = f"{model_dir}/weights"
     weights = "weights.hdf5"
@@ -37,8 +37,8 @@ if __name__ == '__main__':
     gen_model.load_weights(weights_fname)
 
     n_samples = 10
-    maxlen = config["maxlen"]
-    latent_dim = config["latent_dim"]
+    maxlen = int(config["maxlen"])
+    latent_dim = int(config["latent_dim"])
 
     print('----- Generating text -----')
     surface_morph = []
@@ -48,10 +48,10 @@ if __name__ == '__main__':
                                         maxlen,
                                         latent_dim,
                                         word_to_id,
-                                        id_to_word)
+                                        id_to_word,
+                                        is_reversed)
         print(sent_surface)
         surface_morph.append([sent_surface,sent_morph])
     with open(save_sample_fname,"w") as fo:
         writer = csv.writer(fo)
         writer.writerows(surface_morph)
-        

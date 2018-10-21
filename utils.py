@@ -237,7 +237,8 @@ def inference(gen_model,
               maxlen:int,
               latent_dim:int,
               word_to_id:dict,
-              id_to_word:dict):
+              id_to_word:dict,
+              is_reversed:bool=True):
     BorEOS = "<BOS/EOS>_BOS/EOS".lower()
     x_pred = np.zeros(shape=(1,maxlen),dtype='int32')
     x_pred[0,0] = word_to_id[BorEOS]
@@ -257,6 +258,8 @@ def inference(gen_model,
 
     del sentence[-1]
     sent_surface = [w_m.split("_")[0] for w_m in sentence]
+    if is_reversed:
+        sent_surface = [word for word in reversed(sent_surface)]
     sent_surface = " ".join(sent_surface)
     sent_morph = [create_sent_morph(w_m) for w_m in sentence]
     sent_morph = " ".join(sent_morph)

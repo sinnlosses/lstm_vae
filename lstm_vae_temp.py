@@ -29,7 +29,8 @@ def on_epoch_end(epoch, logs):
                              maxlen,
                              latent_dim,
                              word_to_id,
-                             id_to_word)
+                             id_to_word,
+                             is_reversed)
     print(sent_surface)
     return
 
@@ -257,13 +258,14 @@ if __name__ == '__main__':
 
     vae.summary()
     # gen.summary()
-    save_dict = {"n_samples":str(n_samples),
-                 "maxlen":str(maxlen),
-                 "words_num":str(words_num),
-                 "intermediate_dim":str(intermediate_dim),
-                 "w2v_dim":str(w2v_dim),
+    save_dict = {"n_samples":n_samples,
+                 "maxlen":maxlen,
+                 "words_num":words_num,
+                 "intermediate_dim":intermediate_dim,
+                 "latent_dim":latent_dim,
+                 "w2v_dim":w2v_dim,
                  "is_reversed":str(is_reversed),
-                 "mecab_lv":str(mecab_lv),
+                 "mecab_lv":mecab_lv,
                  "use_conjugated":str(use_conjugated)
                  }
     save_config(path=save_config_fname, save_dict=save_dict)
@@ -284,4 +286,7 @@ if __name__ == '__main__':
              callbacks=[print_callback, model_checkpoint])
     loss_history = fit.history['loss']
     gen.save_weights(save_weights_fname)
+    gen_json = gen.to_json()
+    with open(save_model_fname,"w") as fo:
+        fo.write(gen_json)
     plot_history_loss(save_loss_fname,loss_history)
