@@ -285,4 +285,3 @@ if __name__ == '__main__':
     loss_history = fit.history['loss']
     gen.save_weights(save_weights_fname)
     plot_history_loss(save_loss_fname,loss_history)
-    import pdb; pdb.set_trace()
