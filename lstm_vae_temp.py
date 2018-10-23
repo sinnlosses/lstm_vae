@@ -5,6 +5,7 @@ import re
 import random
 import numpy as np
 import pickle
+import json
 
 os.environ["CUDA_DEVICE_ORDER"] = 'PCI_BUS_ID'
 os.environ["CUDA_VISIBLE_DEVICES"] = '0'
@@ -151,25 +152,25 @@ def data_check():
 
 if __name__ == '__main__':
 
-    data_fname = "/Users/fy/Downloads/copy/python_lab/keras/lstm/source/copy_temp.txt"
+    data_fname = "/home/fuji/Documents/lstm/source/copy_source.txt"
     # data_fname = "./source/wiki_edojidai.txt"
     # base_dir = "templete_model"
     base_dir = "templete_model"
     # model_dir_name = "models_5000"
-    model_dir_name = "model_temp"
+    model_dir_name = "model_5000"
     func_wordsets_fname = "func_wordsets.p"
-    w2v_fname = "/Users/fy/Downloads/copy/python_lab/keras/lstm/model.bin"
+    w2v_fname = "/home/fuji/Documents/lstm/model.bin"
     maxlen = 40
-    mecab_lv = 3
-    save_weight_period = 20
+    mecab_lv = 4
+    save_weight_period = 50
     epochs = 200
     batch_size = 32
-    intermediate_dim = 64
-    latent_dim = 32
+    intermediate_dim = 256
+    latent_dim = 64
     is_data_analyzed = False
     is_lang_model = False
     is_reversed = True
-    use_loaded_emb = True
+    use_loaded_emb = False
     use_loaded_model = False
     use_loaded_weight = False
     use_conjugated = True
@@ -184,6 +185,7 @@ if __name__ == '__main__':
     save_callback_weights_fname = os.path.join(weights_dir,"weights_{epoch:03d}_{loss:.2f}.hdf5")
     save_config_fname = os.path.join(model_dir, "config.json")
     save_loss_fname = os.path.join(model_dir, "loss.png")
+    save_loss_values = os.path.join(model_dir, "loss.json")
     data_check()
 
     # 解析済みデータをロードするならここは必要ない
@@ -291,13 +293,15 @@ if __name__ == '__main__':
              epochs=epochs,
              verbose=1,
              batch_size=batch_size,
-             validation_split=0.2,
+            #  validation_split=0.2,
              callbacks=[print_callback])
     loss_history = fit.history['loss']
-    val_loss_history = fit.history['val_loss']
+    # val_loss_history = fit.history['val_loss']
     gen.save_weights(save_weights_fname)
     gen_json = gen.to_json()
     with open(save_model_fname,"w") as fo:
         fo.write(gen_json)
-    plot_history_loss(save_loss_fname,loss_history, val_loss_history)
+    with open(save_loss_values, "w") as fo:
+        json.dump({"loss":loss_history}, fo)
+    plot_history_loss(save_loss_fname,loss_history, val_loss_history=None)
     import pdb; pdb.set_trace()
