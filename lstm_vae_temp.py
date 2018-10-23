@@ -14,7 +14,7 @@ from keras import backend as K
 from keras import objectives
 from keras.layers import Input, LSTM, Embedding, InputSpec
 from keras.layers.core import Dense, Lambda, Dropout
-from keras.layers.wrappers import TimeDistributed
+from keras.layers.wrappers import TimeDistributed, Bidirectional
 from keras.models import Model, model_from_json
 from keras.callbacks import LambdaCallback, ModelCheckpoint, EarlyStopping
 from keras.utils import plot_model
@@ -25,6 +25,9 @@ from utils import plot_history_loss, choise_output_word_id, add_funcword
 from utils import lstm_predict_sampling, add_sample, inference
 
 def on_epoch_end(epoch, logs):
+    if epoch % save_weight_period == 0:
+        gen.save_weights(f"{weights_dir}/gen_{epoch}.hdf5")
+
     print('----- Generating text after Epoch: %d' % epoch)
     sent_surface, _ = inference(gen,
                              maxlen,
@@ -103,11 +106,11 @@ class lstm_vae():
         x_embed = emb(x)
         # x_embed = Dropout(0.5)(x_embed)
         # LSTM encoding
-        h = LSTM(units=intermediate_dim,
+        h = Bidirectional(LSTM(units=intermediate_dim,
                  return_sequences=False,
                  # dropout=0.5,
                  # recurrent_dropout=0.5,
-                 name='enc_lstm')(x_embed)
+                 name='enc_lstm'))(x_embed)
         # VAE Z layer
         self.z_mean = Dense(units=latent_dim, name='z_mean')(h)
         self.z_log_sigma = Dense(units=latent_dim, name='z_log_sigma')(h)
@@ -129,7 +132,7 @@ class lstm_vae():
                                     dtype='int32',
                                     name='dec_input')
         decoded_x_embed = emb(decoder_words_input)
-        decoded_x_embed_dropout = TimestepDropout(0.3)(decoded_x_embed)
+        decoded_x_embed_dropout = TimestepDropout(0.25)(decoded_x_embed)
         # decoded LSTM layer
         decoder_h = LSTM(intermediate_dim,
                          return_sequences=True,
@@ -199,26 +202,26 @@ if __name__ == '__main__':
     # base_dir = "templete_model"
     base_dir = "templete_model"
     # model_dir_name = "models_5000"
-    model_dir_name = "model_5000"
+    model_dir_name = "model_5000_kl0start"
     func_wordsets_fname = "func_wordsets.p"
     w2v_fname = "/home/fuji/Documents/lstm/model.bin"
     maxlen = 40
     mecab_lv = 4
     # kl_w = 0.0
-    kl_w = 0.5
+    kl_w = 1.0
     # kl_w = 1.0
-    save_weight_period = 20
-    # initial_epoch = 0
-    initial_epoch = 30
+    save_weight_period = 10
+    initial_epoch = 0
+    # initial_epoch = 30
     # epochs = 30
-    epochs = 50
+    epochs = 100
     batch_size = 32
     intermediate_dim = 128
     latent_dim = 64
-    is_data_analyzed = True
+    is_data_analyzed = False
     is_lang_model = False
     is_reversed = True
-    use_loaded_emb = True
+    use_loaded_emb = False
     use_loaded_model = False
     use_loaded_weight = False
     use_conjugated = True
@@ -230,6 +233,7 @@ if __name__ == '__main__':
     save_data_fname = os.path.join(model_dir, "analyzed_data.txt")
     save_model_fname = os.path.join(model_dir, "model.json")
     save_weights_fname = os.path.join(weights_dir, "weights.hdf5")
+    save_weights_gen_fname = os.path.join(weights_dir, "gen_weights.hdf5")
     save_callback_weights_fname = os.path.join(weights_dir,"weights_{epoch:03d}_{loss:.2f}.hdf5")
     save_config_fname = os.path.join(model_dir, "config.json")
     save_loss_fname = os.path.join(model_dir, "loss.png")
@@ -312,7 +316,7 @@ if __name__ == '__main__':
         vae, env, gen = vae_model.create_lstm_vae()
     if use_loaded_weight:
         print("重みをロードしました")
-        vae = vae.load_weights(save_weights_fname)
+        vae.load_weights(save_weights_fname)
 
     vae.summary()
     # import pdb; pdb.set_trace()
@@ -348,14 +352,16 @@ if __name__ == '__main__':
              verbose=1,
              batch_size=batch_size,
              validation_split=0.05,
-             callbacks=[print_callback, model_checkpoint])
+             callbacks=[print_callback, model_checkpoint, es_cb])
     loss_history = fit.history['loss']
     val_loss_history = fit.history['val_loss']
-    gen.save_weights(save_weights_fname)
+    gen.save_weights(save_weights_gen_fname)
+    vae.save_weights(save_weights_fname)
     gen_json = gen.to_json()
     with open(save_model_fname,"w") as fo:
         fo.write(gen_json)
     with open(save_loss_values, "w") as fo:
-        json.dump({"loss":loss_history}, fo)
-    plot_history_loss(save_loss_fname,loss_history, val_loss_history=None)
+        json.dump({"loss":loss_history,
+                   "val_loss":val_loss_history}, fo)
+    plot_history_loss(save_loss_fname,loss_history, val_loss_history=val_loss_history)
     import pdb; pdb.set_trace()

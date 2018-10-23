@@ -168,7 +168,7 @@ def choise_output_word_id(distribution, mode='greedy'):
             else:
                 i += 1
     elif mode == "random":
-        output_ids = output_ids[:3]
+        output_ids = output_ids[:5]
         while True:
             output_id = random.choice(output_ids)
             if output_id != 0:

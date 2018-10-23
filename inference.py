@@ -17,10 +17,11 @@ from lstm_vae_temp import TimestepDropout
 
 
 if __name__ == '__main__':
-    model_dir = "./templete_model/model_temp"
+    model_dir = "./templete_model/model_5000_kl0start"
     model_fname = f"{model_dir}/model.json"
     weights_dir = f"{model_dir}/weights"
-    weights = "weights.hdf5"
+    # weights = "weights.hdf5"
+    weights = "gen_weights.hdf5"
     weights_fname = f"{weights_dir}/{weights}"
     word2id_fname = f"{model_dir}/word2id.p"
     config_json = f"{model_dir}/config.json"
@@ -37,7 +38,7 @@ if __name__ == '__main__':
     gen_model = model_from_json(model_json)
     gen_model.load_weights(weights_fname)
 
-    n_samples = 30
+    n_samples = 50
     maxlen = int(config["maxlen"])
     latent_dim = int(config["latent_dim"])
 
