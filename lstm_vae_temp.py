@@ -12,7 +12,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = '0'
 
 from keras import backend as K
 from keras import objectives
-from keras.layers import Input, LSTM, Embedding
+from keras.layers import Input, LSTM, Embedding, InputSpec
 from keras.layers.core import Dense, Lambda, Dropout
 from keras.layers.wrappers import TimeDistributed
 from keras.models import Model, model_from_json
@@ -34,12 +34,37 @@ def on_epoch_end(epoch, logs):
                              is_reversed)
     print(sent_surface)
     return
+class TimestepDropout(Dropout):
+    """Timestep Dropout.
 
-def create_lstm_vae(maxlen:int,
-                    batch_size:int,  # we need it for sampling
-                    intermediate_dim:int,
-                    latent_dim:int,
-                    embedding_matrix):
+    This version performs the same function as Dropout, however it drops
+    entire timesteps (e.g., words embeddings in NLP tasks) instead of individual elements (features).
+
+    # Arguments
+        rate: float between 0 and 1. Fraction of the timesteps to drop.
+
+    # Input shape
+        3D tensor with shape:
+        `(samples, timesteps, channels)`
+
+    # Output shape
+        Same as input
+
+    # References
+        - A Theoretically Grounded Application of Dropout in Recurrent Neural Networks (https://arxiv.org/pdf/1512.05287)
+    """
+
+    def __init__(self, rate, **kwargs):
+        super(TimestepDropout, self).__init__(rate, **kwargs)
+        self.input_spec = InputSpec(ndim=3)
+        self.dropout = rate
+
+    def _get_noise_shape(self, inputs):
+        input_shape = K.shape(inputs)
+        noise_shape = (input_shape[0], input_shape[1], 1)
+        return noise_shape
+
+class lstm_vae():
     """
     Creates an LSTM Variational Autoencoder (VAE).
 
@@ -50,83 +75,100 @@ def create_lstm_vae(maxlen:int,
         latent_dim: int, latent z-layer shape.
         epsilon_std: float, z-layer sigma.
     """
-    words_num = embedding_matrix.shape[0]
-    w2v_dim = embedding_matrix.shape[1]
-    x = Input(shape=(maxlen,), dtype='int32', name='enc_input')
-    emb = Embedding(input_dim=words_num,
-                    output_dim=w2v_dim,
-                    input_length=maxlen,
-                    weights=[embedding_matrix],
-                    mask_zero=True,
-                    trainable=True,
-                    name='emb')
-    x_embed = emb(x)
-    x_dropped = Dropout(0.5)(x_embed)
-    # LSTM encoding
-    h = LSTM(units=intermediate_dim,
-             return_sequences=False,
-             dropout=0.5,
-             recurrent_dropout=0.5,
-             name='enc_lstm')(x_dropped)
-    # VAE Z layer
-    z_mean = Dense(units=latent_dim, name='z_mean')(h)
-    z_log_sigma = Dense(units=latent_dim, name='z_log_sigma')(h)
+    def __init__(self,
+                maxlen:int,
+                batch_size:int,  # we need it for sampling
+                intermediate_dim:int,
+                latent_dim:int,
+                embedding_matrix,
+                kl_w:int=1.0):
+        self.maxlen = maxlen
+        self.batch_size = batch_size
+        self.intermediate_dim = intermediate_dim
+        self.latent_dim = latent_dim
+        self.embedding_matrix = embedding_matrix
+        self.kl_w = kl_w
 
-    def sampling(args):
-        z_mean, z_log_sigma = args
-        epsilon = K.random_normal(shape=(batch_size, latent_dim), mean=0., stddev=1.0)
-        return z_mean + z_log_sigma * epsilon
+    def create_lstm_vae(self):
+        words_num = embedding_matrix.shape[0]
+        w2v_dim = embedding_matrix.shape[1]
+        x = Input(shape=(maxlen,), dtype='int32', name='enc_input')
+        emb = Embedding(input_dim=words_num,
+                        output_dim=w2v_dim,
+                        input_length=maxlen,
+                        weights=[embedding_matrix],
+                        mask_zero=True,
+                        trainable=True,
+                        name='emb')
+        x_embed = emb(x)
+        # x_embed = Dropout(0.5)(x_embed)
+        # LSTM encoding
+        h = LSTM(units=intermediate_dim,
+                 return_sequences=False,
+                 # dropout=0.5,
+                 # recurrent_dropout=0.5,
+                 name='enc_lstm')(x_embed)
+        # VAE Z layer
+        self.z_mean = Dense(units=latent_dim, name='z_mean')(h)
+        self.z_log_sigma = Dense(units=latent_dim, name='z_log_sigma')(h)
 
-    # note that "output_shape" isn't necessary with the TensorFlow backend
-    # so you could write `Lambda(sampling)([z_mean, z_log_sigma])`
-    z = Lambda(sampling, name='z')([z_mean, z_log_sigma])
+        def sampling(args):
+            z_mean, z_log_sigma = args
+            epsilon = K.random_normal(shape=(batch_size, latent_dim), mean=0., stddev=1.0)
+            return z_mean + z_log_sigma * epsilon
 
-    z_reweighting = Dense(units=intermediate_dim, activation="linear")
-    z_reweighted = z_reweighting(z)
+        # note that "output_shape" isn't necessary with the TensorFlow backend
+        # so you could write `Lambda(sampling)([z_mean, z_log_sigma])`
+        z = Lambda(sampling, name='z')([self.z_mean, self.z_log_sigma])
 
-    # "next-word" data for prediction
-    decoder_words_input = Input(shape=(maxlen,),
-                                dtype='int32',
-                                name='dec_input')
-    decoded_x_embed = emb(decoder_words_input)
-    # decoded LSTM layer
-    decoder_h = LSTM(intermediate_dim,
-                     return_sequences=True,
-                     dropout=0.2,
-                     recurrent_dropout=0.2,
-                     name='dec_lstm')
+        z_reweighting = Dense(units=intermediate_dim, activation="linear")
+        z_reweighted = z_reweighting(z)
 
-    # todo: not sure if this initialization is correct
-    h_decoded = decoder_h(decoded_x_embed,
-                        initial_state=[z_reweighted, z_reweighted])
-    decoder_dense = TimeDistributed(Dense(words_num,
-                                          activation="softmax",
-                                          name='main_output'))
-    decoded_onehot = decoder_dense(h_decoded)
+        # "next-word" data for prediction
+        decoder_words_input = Input(shape=(maxlen,),
+                                    dtype='int32',
+                                    name='dec_input')
+        decoded_x_embed = emb(decoder_words_input)
+        decoded_x_embed_dropout = TimestepDropout(0.3)(decoded_x_embed)
+        # decoded LSTM layer
+        decoder_h = LSTM(intermediate_dim,
+                         return_sequences=True,
+                         # dropout=0.2,
+                         # recurrent_dropout=0.2,
+                         name='dec_lstm')
 
-    # end-to-end autoencoder
-    vae = Model([x, decoder_words_input], decoded_onehot)
+        # todo: not sure if this initialization is correct
+        h_decoded = decoder_h(decoded_x_embed_dropout,
+                            initial_state=[z_reweighted, z_reweighted])
+        decoder_dense = TimeDistributed(Dense(words_num,
+                                              activation="softmax",
+                                              name='main_output'))
+        decoded_onehot = decoder_dense(h_decoded)
 
-    # encoder, from inputs to latent space
-    encoder = Model(x, [z_mean, z_log_sigma])
+        # end-to-end autoencoder
+        vae = Model([x, decoder_words_input], decoded_onehot)
 
-    # generator, from latent space to reconstructed inputs -- for inference's first step
-    decoder_state_input = Input(shape=(latent_dim,))
-    _z_reweighted = z_reweighting(decoder_state_input)
-    _h_decoded = decoder_h(decoded_x_embed,
-                           initial_state=[_z_reweighted, _z_reweighted])
-    _decoded_onehot = decoder_dense(_h_decoded)
-    generator = Model([decoder_words_input,decoder_state_input],
-                      [_decoded_onehot])
+        # encoder, from inputs to latent space
+        encoder = Model(x, [self.z_mean, self.z_log_sigma])
 
-    def vae_loss(x, x_decoded_onehot):
+        # generator, from latent space to reconstructed inputs -- for inference's first step
+        decoder_state_input = Input(shape=(latent_dim,))
+        _z_reweighted = z_reweighting(decoder_state_input)
+        _h_decoded = decoder_h(decoded_x_embed,
+                               initial_state=[_z_reweighted, _z_reweighted])
+        _decoded_onehot = decoder_dense(_h_decoded)
+        generator = Model([decoder_words_input,decoder_state_input],
+                          [_decoded_onehot])
+
+        return vae, encoder, generator
+
+    def vae_loss(self, x, x_decoded_onehot):
         xent_loss = objectives.categorical_crossentropy(x, x_decoded_onehot)
-        kl_loss = - 0.5 * K.mean(1 + z_log_sigma - K.square(z_mean) - K.exp(z_log_sigma))
-        loss = xent_loss + kl_loss
+        kl_loss = - 0.5 * K.mean(1 + self.z_log_sigma - K.square(self.z_mean) - K.exp(self.z_log_sigma))
+        loss = xent_loss + self.kl_w*kl_loss
         return loss
 
-    vae.compile(optimizer="adam", loss=vae_loss)
-    return vae, encoder, generator
+    # return vae, encoder, generator
 
 def data_check():
     # コピーのソースの確認
@@ -162,15 +204,21 @@ if __name__ == '__main__':
     w2v_fname = "/home/fuji/Documents/lstm/model.bin"
     maxlen = 40
     mecab_lv = 4
-    save_weight_period = 50
-    epochs = 200
+    # kl_w = 0.0
+    kl_w = 0.5
+    # kl_w = 1.0
+    save_weight_period = 20
+    # initial_epoch = 0
+    initial_epoch = 30
+    # epochs = 30
+    epochs = 50
     batch_size = 32
-    intermediate_dim = 256
+    intermediate_dim = 128
     latent_dim = 64
-    is_data_analyzed = False
+    is_data_analyzed = True
     is_lang_model = False
     is_reversed = True
-    use_loaded_emb = False
+    use_loaded_emb = True
     use_loaded_model = False
     use_loaded_weight = False
     use_conjugated = True
@@ -247,23 +295,27 @@ if __name__ == '__main__':
     w2v_dim = len(embedding_matrix[1])
     id_to_word = {i:w for w,i in word_to_id.items()}
     if use_loaded_model:
+        raise IOError("現在、モデルはロードできません。")
         print("保存されたモデルをロードします")
         with open(save_model_fname,"r") as fi:
             json_string = fi.read()
             vae, enc, gen = model_from_json(json_string)
     else:
         print("モデルを構築します")
-        vae, enc, gen = create_lstm_vae(
+        vae_model = lstm_vae(
                             maxlen=maxlen,
                             batch_size=batch_size,
                             intermediate_dim=intermediate_dim,
                             latent_dim=latent_dim,
-                            embedding_matrix=embedding_matrix)
+                            embedding_matrix=embedding_matrix,
+                            kl_w=kl_w)
+        vae, env, gen = vae_model.create_lstm_vae()
     if use_loaded_weight:
         print("重みをロードしました")
         vae = vae.load_weights(save_weights_fname)
 
     vae.summary()
+    # import pdb; pdb.set_trace()
     # gen.summary()
     save_dict = {"n_samples":n_samples,
                  "maxlen":maxlen,
@@ -288,15 +340,17 @@ if __name__ == '__main__':
                                         period=save_weight_period)
 
     print("Training model...")
+    vae.compile(optimizer="adam", loss=vae_model.vae_loss)
     fit = vae.fit([X_enc, X_dec],
              Y,
              epochs=epochs,
+             initial_epoch=initial_epoch,
              verbose=1,
              batch_size=batch_size,
-            #  validation_split=0.2,
-             callbacks=[print_callback])
+             validation_split=0.05,
+             callbacks=[print_callback, model_checkpoint])
     loss_history = fit.history['loss']
-    # val_loss_history = fit.history['val_loss']
+    val_loss_history = fit.history['val_loss']
     gen.save_weights(save_weights_fname)
     gen_json = gen.to_json()
     with open(save_model_fname,"w") as fo:

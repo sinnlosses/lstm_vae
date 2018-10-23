@@ -13,6 +13,7 @@ from keras.layers.wrappers import TimeDistributed
 from keras.models import Model, model_from_json
 import pickle
 from utils import inference
+from lstm_vae_temp import TimestepDropout
 
 
 if __name__ == '__main__':
