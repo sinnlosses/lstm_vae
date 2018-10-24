@@ -197,14 +197,17 @@ def data_check():
 
 if __name__ == '__main__':
 
-    data_fname = "/home/fuji/Documents/lstm/source/copy_source.txt"
+    # data_fname = "/home/fuji/Documents/lstm/source/copy_source.txt"
+    data_fname = "/Users/fy/Downloads/copy/python_lab/keras/lstm/source/copy_source.txt"
     # data_fname = "./source/wiki_edojidai.txt"
     # base_dir = "templete_model"
     base_dir = "templete_model"
     # model_dir_name = "models_5000"
-    model_dir_name = "model_5000_kl0start"
+    model_dir_name = "model_temp"
     func_wordsets_fname = "func_wordsets.p"
-    w2v_fname = "/home/fuji/Documents/lstm/model.bin"
+    # w2v_fname = "/home/fuji/Documents/lstm/model.bin"
+    w2v_fname = "/Users/fy/Downloads/copy/python_lab/keras/lstm/model.bin"
+
     maxlen = 40
     mecab_lv = 4
     # kl_w = 0.0
@@ -313,13 +316,13 @@ if __name__ == '__main__':
                             latent_dim=latent_dim,
                             embedding_matrix=embedding_matrix,
                             kl_w=kl_w)
-        vae, env, gen = vae_model.create_lstm_vae()
+        vae, enc, gen = vae_model.create_lstm_vae()
     if use_loaded_weight:
         print("重みをロードしました")
         vae.load_weights(save_weights_fname)
 
     vae.summary()
-    # import pdb; pdb.set_trace()
+    import pdb; pdb.set_trace()
     # gen.summary()
     save_dict = {"n_samples":n_samples,
                  "maxlen":maxlen,
