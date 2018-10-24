@@ -60,7 +60,7 @@ def wiki_text_structing(text:str):
 
 if __name__ == '__main__':
     ext = ".txt"
-    target_dir_name = "./江戸時代_wiki_database"
+    target_dir_name = "./コーヒー_wiki_database"
     save_dir_name = f"{target_dir_name}/save_database"
     result_path = f"{save_dir_name}/result.txt"
     if not os.path.exists(target_dir_name):

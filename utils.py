@@ -151,7 +151,7 @@ def plot_history_loss(save_path:str,
 
     return
 
-def choise_output_word_id(distribution, mode='greedy'):
+def choise_output_word_id(distribution, word_to_id, id_to_word, mode='greedy'):
     BorEOS = "<BOS/EOS>_BOS/EOS".lower()
     output_ids = np.argsort(distribution)[::-1]
     def check(id):
@@ -169,10 +169,11 @@ def choise_output_word_id(distribution, mode='greedy'):
                 i += 1
     elif mode == "random":
         output_ids = output_ids[:5]
-        while True:
+        output_words = [id_to_word[id] for id in output_ids if id != 0]
+        if BorEOS in output_words:
+            output_id = word_to_id[BorEOS]
+        else:
             output_id = random.choice(output_ids)
-            if output_id != 0:
-                break
     else:
         raise ValueError("modeの値が間違っています")
 
@@ -246,7 +247,7 @@ def inference(gen_model,
     sentence = []
     for i in range(maxlen-1):
         preds = gen_model.predict([x_pred,z_pred], verbose=0)[0]
-        output_id = choise_output_word_id(preds[i], mode="greedy")
+        output_id = choise_output_word_id(preds[i], word_to_id, id_to_word, mode="random")
         output_word = id_to_word[output_id]
         sentence.append(output_word)
         if output_word == BorEOS:
@@ -276,10 +277,11 @@ def create_sent_morph(w_m):
         res = "<{}>".format(m)
     return res
 
-def add_sample(sent_list:list, batch_size:int):
+def add_sample(sent_list:list, batch_size:int, validation_split=None):
     amari = len(sent_list) % batch_size
     num_adds = batch_size - amari
     adds = random.sample(sent_list, k=num_adds)
     sent_list.extend(adds)
+    batch_size = int(len(sent_list)*validation_split)
 
-    return sent_list
+    return sent_list, batch_size

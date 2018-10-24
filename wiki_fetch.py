@@ -61,7 +61,7 @@ class Wiki:
         redirect_word = re.sub(r"/wiki/","",href.get_text())
         return (True,redirect_word)
 
-def query_get(query:str, model_path="/Users/fy/Downloads/copy/python_lab/keras/lstm/model.bin"):
+def query_get(query:str, model_path="./model.bin"):
     w2v = KeyedVectors.load_word2vec_format(model_path,binary=True)
     similar_list = w2v.most_similar([query])
     similar_list = [sim_word[0] for sim_word in similar_list]
@@ -75,7 +75,7 @@ def data_overlap_check(html_list, html):
     return True
 if __name__ == '__main__':
 
-    query = "江戸時代"
+    query = "コーヒー"
     dir_path = f"{query}_wiki_database"
     if not os.path.exists(dir_path):
         os.mkdir(dir_path)

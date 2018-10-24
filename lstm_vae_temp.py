@@ -12,7 +12,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = '0'
 
 from keras import backend as K
 from keras import objectives
-from keras.layers import Input, LSTM, Embedding, InputSpec
+from keras.layers import Input, LSTM, Embedding, InputSpec, Concatenate
 from keras.layers.core import Dense, Lambda, Dropout
 from keras.layers.wrappers import TimeDistributed, Bidirectional
 from keras.models import Model, model_from_json
@@ -122,8 +122,7 @@ class lstm_vae():
 
         # note that "output_shape" isn't necessary with the TensorFlow backend
         # so you could write `Lambda(sampling)([z_mean, z_log_sigma])`
-        z = Lambda(sampling, name='z')([self.z_mean, self.z_log_sigma])
-
+        z = Lambda(sampling, name='z')([self.z_mean, self.z_log_sigma])  
         z_reweighting = Dense(units=intermediate_dim, activation="linear")
         z_reweighted = z_reweighting(z)
 
@@ -171,7 +170,6 @@ class lstm_vae():
         loss = xent_loss + self.kl_w*kl_loss
         return loss
 
-    # return vae, encoder, generator
 
 def data_check():
     # コピーのソースの確認
@@ -198,31 +196,32 @@ def data_check():
 if __name__ == '__main__':
 
     # data_fname = "/home/fuji/Documents/lstm/source/copy_source.txt"
-    data_fname = "/Users/fy/Downloads/copy/python_lab/keras/lstm/source/copy_source.txt"
+    data_fname = "./コーヒー_wiki_database/save_database/result.txt"
     # data_fname = "./source/wiki_edojidai.txt"
     # base_dir = "templete_model"
-    base_dir = "templete_model"
+    base_dir = "language_model"
     # model_dir_name = "models_5000"
-    model_dir_name = "model_temp"
+    model_dir_name = "model_coffee"
     func_wordsets_fname = "func_wordsets.p"
     # w2v_fname = "/home/fuji/Documents/lstm/model.bin"
-    w2v_fname = "/Users/fy/Downloads/copy/python_lab/keras/lstm/model.bin"
+    w2v_fname = "./model.bin"
 
-    maxlen = 40
+    maxlen = 30
     mecab_lv = 4
     # kl_w = 0.0
     kl_w = 1.0
     # kl_w = 1.0
     save_weight_period = 10
     initial_epoch = 0
+    validation_split = 0.05
     # initial_epoch = 30
     # epochs = 30
-    epochs = 100
-    batch_size = 32
-    intermediate_dim = 128
-    latent_dim = 64
+    epochs = 1000
+    temp_batch_size = 100
+    intermediate_dim = 256
+    latent_dim = 128
     is_data_analyzed = False
-    is_lang_model = False
+    is_lang_model = True
     is_reversed = True
     use_loaded_emb = False
     use_loaded_model = False
@@ -258,8 +257,10 @@ if __name__ == '__main__':
                         level=mecab_lv,
                         use_conjugated=use_conjugated)
     sent_list = [sent.strip() for sent in sent_list if 3 <= len(sent.split(" ")) <= maxlen]
-    if len(sent_list) % batch_size != 0:
-        sent_list = add_sample(sent_list, batch_size)
+    if len(sent_list) % temp_batch_size != 0:
+        sent_list, batch_size = add_sample(sent_list, temp_batch_size, validation_split)
+    else:
+        batch_size = len(sent_list)*validation_split
 
     # 各種データの情報
     n_samples = len(sent_list)
@@ -322,7 +323,7 @@ if __name__ == '__main__':
         vae.load_weights(save_weights_fname)
 
     vae.summary()
-    import pdb; pdb.set_trace()
+    # import pdb; pdb.set_trace()
     # gen.summary()
     save_dict = {"n_samples":n_samples,
                  "maxlen":maxlen,
@@ -354,7 +355,7 @@ if __name__ == '__main__':
              initial_epoch=initial_epoch,
              verbose=1,
              batch_size=batch_size,
-             validation_split=0.05,
+             validation_split=validation_split,
              callbacks=[print_callback, model_checkpoint, es_cb])
     loss_history = fit.history['loss']
     val_loss_history = fit.history['val_loss']
