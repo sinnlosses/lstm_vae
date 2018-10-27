@@ -168,7 +168,7 @@ def choise_output_word_id(distribution, word_to_id, id_to_word, mode='greedy'):
             else:
                 i += 1
     elif mode == "random":
-        output_ids = output_ids[:5]
+        output_ids = output_ids[:3]
         output_words = [id_to_word[id] for id in output_ids if id != 0]
         if BorEOS in output_words:
             output_id = word_to_id[BorEOS]
@@ -195,44 +195,6 @@ def printing_sample(csv:str, save_path:str="temp.txt"):
     with open(save_path, "w") as fo:
         fo.write("\n".join(sent_list))
 
-def lstm_predict_sampling(model,
-                     maxlen:int,
-                     word_to_id:dict,
-                     id_to_word:dict,
-                     h_length:int,
-                     is_reversed:bool):
-
-    BorEOS = "<BOS/EOS>_BOS/EOS".lower()
-    x_pred = np.zeros(shape=(1,maxlen),dtype='int32')
-    x_pred[0,0] = word_to_id[BorEOS]
-    h_pred = np.random.normal(0,1,(1,h_length))
-    c_pred = np.random.normal(0,1,(1,h_length))
-    sentence = []
-    for i in range(maxlen-1):
-        preds = model.predict([x_pred,h_pred,c_pred], verbose=0)[0]
-        output_id = choise_output_word_id(preds[i], mode="greedy")
-        output_word = id_to_word[output_id]
-        sentence.append(output_word)
-        if output_word == BorEOS:
-            break
-        x_pred[0,i+1] = output_id
-    if sentence[-1] != BorEOS:
-        err_mes = "produce_failed!"
-        print(err_mes)
-
-    del sentence[-1]
-    if not sentence:
-        err_mes = "white"
-        print(err_mes)
-
-    sent_surface = [w_m.split("_")[0] for w_m in sentence]
-    if is_reversed:
-        sent_surface = [word for word in reversed(sent_surface)]
-    sent_surface = " ".join(sent_surface)
-    sent_morph = [create_sent_morph(w_m) for w_m in sentence]
-    sent_morph = " ".join(sent_morph)
-
-    return (sent_surface, sent_morph)
 
 def inference(gen_model,
               maxlen:int,
@@ -247,7 +209,7 @@ def inference(gen_model,
     sentence = []
     for i in range(maxlen-1):
         preds = gen_model.predict([x_pred,z_pred], verbose=0)[0]
-        output_id = choise_output_word_id(preds[i], word_to_id, id_to_word, mode="random")
+        output_id = choise_output_word_id(preds[i], word_to_id, id_to_word, mode="greedy")
         output_word = id_to_word[output_id]
         sentence.append(output_word)
         if output_word == BorEOS:
@@ -277,11 +239,11 @@ def create_sent_morph(w_m):
         res = "<{}>".format(m)
     return res
 
-def add_sample(sent_list:list, batch_size:int, validation_split=None):
-    amari = len(sent_list) % batch_size
-    num_adds = batch_size - amari
-    adds = random.sample(sent_list, k=num_adds)
-    sent_list.extend(adds)
-    batch_size = int(len(sent_list)*validation_split)
+def sub_sample(sent_list:list, batch_size:int, validation_split:int):
+    n_samples = len(sent_list)
+    remainder = n_samples % batch_size
+    total = n_samples - remainder
+    batch_size = int(total*validation_split)
 
-    return sent_list, batch_size
+    return sent_list[:total], batch_size
+

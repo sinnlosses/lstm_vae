@@ -22,7 +22,7 @@ from keras.utils import plot_model
 from utils import sent_to_surface_conjugated, max_sent_len, save_config
 from utils import create_words_set, create_vae_ex_dx_y, create_emb_and_dump
 from utils import plot_history_loss, choise_output_word_id, add_funcword
-from utils import lstm_predict_sampling, add_sample, inference
+from utils import sub_sample, inference
 
 def on_epoch_end(epoch, logs):
     if epoch % save_weight_period == 0:
@@ -118,7 +118,7 @@ class lstm_vae():
         def sampling(args):
             z_mean, z_log_sigma = args
             epsilon = K.random_normal(shape=(batch_size, latent_dim), mean=0., stddev=1.0)
-            return z_mean + z_log_sigma * epsilon
+            return z_mean + K.exp(0.5*z_log_sigma) * epsilon
 
         # note that "output_shape" isn't necessary with the TensorFlow backend
         # so you could write `Lambda(sampling)([z_mean, z_log_sigma])`
@@ -195,13 +195,13 @@ def data_check():
 
 if __name__ == '__main__':
 
-    # data_fname = "/home/fuji/Documents/lstm/source/copy_source.txt"
-    data_fname = "./コーヒー_wiki_database/save_database/result.txt"
+    data_fname = "/home/fuji/Documents/lstm/source/copy_source.txt"
+    # data_fname = "./江戸時代_wiki_database/save_database/result.txt"
     # data_fname = "./source/wiki_edojidai.txt"
-    # base_dir = "templete_model"
-    base_dir = "language_model"
-    # model_dir_name = "models_5000"
-    model_dir_name = "model_coffee"
+    base_dir = "templete_model"
+    # base_dir = "language_model"
+    model_dir_name = "models_5000"
+    # model_dir_name = "model_edo"
     func_wordsets_fname = "func_wordsets.p"
     # w2v_fname = "/home/fuji/Documents/lstm/model.bin"
     w2v_fname = "./model.bin"
@@ -220,8 +220,8 @@ if __name__ == '__main__':
     temp_batch_size = 100
     intermediate_dim = 256
     latent_dim = 128
-    is_data_analyzed = False
-    is_lang_model = True
+    is_data_analyzed = True
+    is_lang_model = False
     is_reversed = True
     use_loaded_emb = False
     use_loaded_model = False
@@ -257,14 +257,14 @@ if __name__ == '__main__':
                         level=mecab_lv,
                         use_conjugated=use_conjugated)
     sent_list = [sent.strip() for sent in sent_list if 3 <= len(sent.split(" ")) <= maxlen]
-    if len(sent_list) % temp_batch_size != 0:
-        sent_list, batch_size = add_sample(sent_list, temp_batch_size, validation_split)
+    if (len(sent_list)*validation_split) % temp_batch_size != 0:
+        sent_list, batch_size = sub_sample(sent_list, temp_batch_size, validation_split)
     else:
-        batch_size = len(sent_list)*validation_split
-
+        batch_size = temp_batch_size
+    
     # 各種データの情報
     n_samples = len(sent_list)
-    maxlen = max_sent_len(sent_list) + 1
+    maxlen = max_sent_len(sent_list)
     words_set = create_words_set(sent_list)
     if is_lang_model:
         print("機能語のセットをロードします")
