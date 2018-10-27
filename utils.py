@@ -49,6 +49,47 @@ def sent_to_surface_conjugated(sentences:str,
         fo.write("\n".join(mecabed_list))
     return mecabed_list
 
+def sent_to_morph_funcword(sentences:str,
+                           save_path:str,
+                           level:int=4,
+                           use_conjugated:bool=True):
+    """
+        \nで区切られた各文をmecabで解析し内容語は品詞情報に+機能語はそのまま
+        という形で保存する
+    """
+    mecab = MeCab.Tagger()
+    mecab.parse("")
+    sent_list = sentences.split("\n")
+    mecabed_list = []
+    for sent in sent_list:
+        word_morph_list = []
+        node = mecab.parseToNode(sent)
+        while node:
+            morphes = node.feature.split(",")
+            if morphes[0] == "BOS/EOS":
+                wm = "<BOS/EOS>_BOS/EOS".lower()
+                word_morph_list.append(wm)
+                node = node.next
+                continue
+            word = node.surface
+            morph = morphes[0]
+            tail_infoes = morphes[:level]
+            if use_conjugated:
+                tail_infoes.append(morphes[5])
+            tail_infoes = "_".join(tail_infoes)
+            if morph in ["助動詞","助詞","接続詞","記号"]:
+                wm = f"{word}_{tail_infoes}"
+            else:
+                wm = f"{morph}_{tail_infoes}"
+            word_morph_list.append(wm)
+            node = node.next
+        result = " ".join(word_morph_list)
+        mecabed_list.append(result)
+
+    with open(save_path, "w") as fo:
+        fo.write("\n".join(mecabed_list))
+    return mecabed_list
+
 def max_sent_len(sent_list:list):
     return max([len(sent.split(" ")) for sent in sent_list])
 
@@ -247,7 +288,7 @@ def inference(gen_model,
     sentence = []
     for i in range(maxlen-1):
         preds = gen_model.predict([x_pred,z_pred], verbose=0)[0]
-        output_id = choise_output_word_id(preds[i], word_to_id, id_to_word, mode="random")
+        output_id = choise_output_word_id(preds[i], word_to_id, id_to_word, mode="greedy")
         output_word = id_to_word[output_id]
         sentence.append(output_word)
         if output_word == BorEOS:

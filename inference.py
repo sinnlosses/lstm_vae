@@ -18,7 +18,7 @@ from lstm_vae_temp import TimestepDropout
 
 if __name__ == '__main__':
     # model_dir = "./language_model/model_coffee"
-    model_dir = "./templete_model/model_5000_kl0start"
+    model_dir = "./templete_model/models_5000_l128_h256"
     model_fname = f"{model_dir}/model.json"
     weights_dir = f"{model_dir}/weights"
     # weights = "weights.hdf5"
