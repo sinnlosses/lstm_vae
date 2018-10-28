@@ -63,7 +63,7 @@ def data_check():
 if __name__ == '__main__':
 
     # データ関係のファイルパスやディレクトリ
-    data_fname = "/Users/fy/Downloads/copy/python_lab/keras/source/copy_source.txt"
+    data_fname = "source/copy_source.txt"
     is_templete = True
     model_dir_name = "models_temp"
     func_wordsets_fname = "func_wordsets.p"
@@ -89,7 +89,7 @@ if __name__ == '__main__':
     is_reversed = True
 
     # モデル関連
-    use_loaded_emb = True
+    use_loaded_emb = False
     use_loaded_model = False
     use_loaded_weight = False
     save_model_fname = os.path.join(model_dir, "model.json")
