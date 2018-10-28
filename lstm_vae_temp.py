@@ -22,14 +22,14 @@ from utils import save_config
 from utils import plot_history_loss, choise_output_word_id
 from utils import sub_sample, inference, SentDataLoader, SentDataConfig
 
-from model import lstm_vae
+from model import LstmVae
 
 def on_epoch_end(epoch, logs):
     if epoch % save_weight_period == 0:
         gen.save_weights(f"{weights_dir}/gen_{epoch}.hdf5")
 
     print('----- Generating text after Epoch: %d' % epoch)
-    for _ in range(5)
+    for _ in range(5):
         sent_surface, _ = sampling_obj.inference()
         print(sent_surface)
     return
@@ -194,7 +194,7 @@ if __name__ == '__main__':
                              maxlen,
                              latent_dim,
                              word_to_id,
-                             is_reversed))
+                             is_reversed)
     es_cb = EarlyStopping(patience=30,
                           verbose=1)
     print_callback = LambdaCallback(on_epoch_end=on_epoch_end)
