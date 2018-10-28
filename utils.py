@@ -174,8 +174,6 @@ def save_config(path:str, save_dict:dict):
         json.dump(save_dict, fo)
     return
 
-
-
 def plot_history_loss(save_path:str,
                       loss_history:list,
                       val_loss_history=None):
@@ -192,35 +190,6 @@ def plot_history_loss(save_path:str,
 
     return
 
-def choise_output_word_id(distribution, word_to_id, id_to_word, mode='greedy'):
-    BorEOS = "<BOS/EOS>_BOS/EOS".lower()
-    output_ids = np.argsort(distribution)[::-1]
-    def check(id):
-        if id == 0:
-            return False
-        return True
-
-    if mode == "greedy":
-        i = 0
-        while True:
-            output_id = output_ids[i]
-            if output_id != 0:
-                break
-            else:
-                i += 1
-    elif mode == "random":
-        output_ids = output_ids[:3]
-        output_words = [id_to_word[id] for id in output_ids if id != 0]
-        if BorEOS in output_words:
-            output_id = word_to_id[BorEOS]
-        else:
-            output_id = random.choice(output_ids)
-    else:
-        raise ValueError("modeの値が間違っています")
-
-    return output_id
-
-
 
 def printing_sample(csv:str, save_path:str="temp.txt"):
     with open(csv, "r") as fi:
@@ -230,49 +199,84 @@ def printing_sample(csv:str, save_path:str="temp.txt"):
     with open(save_path, "w") as fo:
         fo.write("\n".join(sent_list))
 
+class Inference(object):
+    def __init__(self,
+                 gen_model,
+                 maxlen:int,
+                 latent_dim:int,
+                 word_to_id:dict,
+                 is_reversed:bool=True):
+        self.gen_model = gen_model
+        self.maxlen = maxlen
+        self.latent_dim = latent_dim
+        self.word_to_id = word_to_id
+        self.is_reversed = is_reversed
+        self.id_to_word = {i:w for w,i in word_to_id.items()}
+        self.BorEOS = "<BOS/EOS>_BOS/EOS".lower()
 
-def inference(gen_model,
-              maxlen:int,
-              latent_dim:int,
-              word_to_id:dict,
-              id_to_word:dict,
-              is_reversed:bool=True):
-    BorEOS = "<BOS/EOS>_BOS/EOS".lower()
-    x_pred = np.zeros(shape=(1,maxlen),dtype='int32')
-    x_pred[0,0] = word_to_id[BorEOS]
-    z_pred = np.random.normal(0,1,(1,latent_dim))
-    sentence = []
-    for i in range(maxlen-1):
-        preds = gen_model.predict([x_pred,z_pred], verbose=0)[0]
-        output_id = choise_output_word_id(preds[i], word_to_id, id_to_word, mode="greedy")
-        output_word = id_to_word[output_id]
-        sentence.append(output_word)
-        if output_word == BorEOS:
-            break
-        x_pred[0,i+1] = output_id
-    if sentence[-1] != BorEOS:
-        err_mes = "produce_failed!"
-        return err_mes, None
+    def choise_output_word_id(self, distribution, mode='greedy'):
+        output_ids = np.argsort(distribution)[::-1]
+        def check(id):
+            if id == 0:
+                return False
+            return True
 
-    del sentence[-1]
-    sent_surface = [w_m.split("_")[0] for w_m in sentence]
-    if is_reversed:
-        sent_surface = [word for word in reversed(sent_surface)]
-    sent_surface = " ".join(sent_surface)
-    sent_morph = [create_sent_morph(w_m) for w_m in sentence]
-    sent_morph = " ".join(sent_morph)
+        if mode == "greedy":
+            i = 0
+            while True:
+                output_id = output_ids[i]
+                if output_id != 0:
+                    break
+                else:
+                    i += 1
+        elif mode == "random":
+            output_ids = output_ids[:3]
+            output_words = [self.id_to_word[id] for id in output_ids if id != 0]
+            if self.BorEOS in output_words:
+                output_id = self.word_to_id[self.BorEOS]
+            else:
+                output_id = random.choice(output_ids)
+        else:
+            raise ValueError("modeの値が間違っています")
 
-    return sent_surface, sent_morph
+        return output_id
 
-def create_sent_morph(w_m):
-    word, morph = w_m.split("_")[0], w_m.split("_")[1]
-    if morph in ["助詞","助動詞","記号","接続詞"]:
-        res = w_m
-    else:
-        m = w_m.split("_")[1:]
-        m = "_".join(m)
-        res = "<{}>".format(m)
-    return res
+    def inference(self):
+        x_pred = np.zeros(shape=(1,self.maxlen),dtype='int32')
+        x_pred[0,0] = self.word_to_id[self.BorEOS]
+        z_pred = np.random.normal(0,1,(1,self.latent_dim))
+        sentence = []
+        for i in range(self.maxlen-1):
+            preds = self.gen_model.predict([x_pred,z_pred], verbose=0)[0]
+            output_id = self.choise_output_word_id(preds[i], mode="greedy")
+            output_word = self.id_to_word[output_id]
+            sentence.append(output_word)
+            if output_word == self.BorEOS:
+                break
+            x_pred[0,i+1] = output_id
+        if sentence[-1] != self.BorEOS:
+            err_mes = "produce_failed!"
+            return err_mes, None
+
+        del sentence[-1]
+        sent_surface = [w_m.split("_")[0] for w_m in sentence]
+        if self.is_reversed:
+            sent_surface = [word for word in reversed(sent_surface)]
+        sent_surface = " ".join(sent_surface)
+        sent_morph = [self.create_sent_morph(w_m) for w_m in sentence]
+        sent_morph = " ".join(sent_morph)
+
+        return sent_surface, sent_morph
+
+    def create_sent_morph(self, w_m):
+        word, morph = w_m.split("_")[0], w_m.split("_")[1]
+        if morph in ["助詞","助動詞","記号","接続詞"]:
+            res = w_m
+        else:
+            m = w_m.split("_")[1:]
+            m = "_".join(m)
+            res = "<{}>".format(m)
+        return res
 
 def sub_sample(sent_list:list, batch_size:int, validation_split:int):
     n_samples = len(sent_list)

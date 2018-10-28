@@ -48,7 +48,7 @@ class TimestepDropout(Dropout):
         noise_shape = (input_shape[0], input_shape[1], 1)
         return noise_shape
 
-class lstm_vae():
+class LstmVae():
     """
     Creates an LSTM Variational Autoencoder (VAE).
 
