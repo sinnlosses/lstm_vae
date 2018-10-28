@@ -12,8 +12,7 @@ from keras.layers import Input, Dense, Embedding, LSTM
 from keras.layers.wrappers import TimeDistributed
 from keras.models import Model, model_from_json
 import pickle
-from utils import inference
-from lstm_vae_temp import TimestepDropout
+from utils import Inference
 
 
 if __name__ == '__main__':
@@ -43,19 +42,15 @@ if __name__ == '__main__':
     n_samples = 100
     maxlen = int(config["maxlen"])
     latent_dim = int(config["latent_dim"])
-
+    sampling_obj = Inference(gen_model,
+                            maxlen,
+                            latent_dim,
+                            word_to_id,
+                            is_reversed)
     print('----- Generating text -----')
     surface_morph = []
     for n_sample in range(n_samples):
-        sent_surface, sent_morph = inference(
-                                        gen_model,
-                                        maxlen,
-                                        latent_dim,
-                                        word_to_id,
-                                        id_to_word,
-                                        is_reversed)
-        if not sent_surface:
-            continue
+        sent_surface, sent_morph = sampling_obj.inference("random", var=3)
         print(sent_surface)
         # surface_morph.append([sent_surface,sent_morph])
         surface_morph.append(f"{n_sample}-----\n{sent_surface}\n")

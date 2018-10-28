@@ -241,14 +241,14 @@ class Inference(object):
 
         return output_id
 
-    def inference(self):
+    def inference(self, mode="greedy", var:int=1):
         x_pred = np.zeros(shape=(1,self.maxlen),dtype='int32')
         x_pred[0,0] = self.word_to_id[self.BorEOS]
-        z_pred = np.random.normal(0,1,(1,self.latent_dim))
+        z_pred = np.random.normal(0,var,(1,self.latent_dim))
         sentence = []
         for i in range(self.maxlen-1):
             preds = self.gen_model.predict([x_pred,z_pred], verbose=0)[0]
-            output_id = self.choise_output_word_id(preds[i], mode="greedy")
+            output_id = self.choise_output_word_id(preds[i], mode=mode)
             output_word = self.id_to_word[output_id]
             sentence.append(output_word)
             if output_word == self.BorEOS:
