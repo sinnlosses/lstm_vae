@@ -18,24 +18,19 @@ from keras.models import Model, model_from_json
 from keras.callbacks import LambdaCallback, ModelCheckpoint, EarlyStopping
 from keras.utils import plot_model
 
-from utils import save_config
-from utils import plot_history_loss, choise_output_word_id
-from utils import sub_sample, inference, SentDataLoader, SentDataConfig
+from utils import save_config, plot_history_loss
+from utils import sub_sample, Inference, SentDataLoader, SentDataConfig
 
-from model import lstm_vae
+from model import LstmVae
 
 def on_epoch_end(epoch, logs):
     if epoch % save_weight_period == 0:
         gen.save_weights(f"{weights_dir}/gen_{epoch}.hdf5")
 
     print('----- Generating text after Epoch: %d' % epoch)
-    sent_surface, _ = inference(gen,
-                             maxlen,
-                             latent_dim,
-                             word_to_id,
-                             id_to_word,
-                             is_reversed)
-    print(sent_surface)
+    for _ in range(5):
+        sent_surface, _ = sampling_obj.inference()
+        print(sent_surface)
     return
 
 def data_check():
@@ -168,10 +163,7 @@ if __name__ == '__main__':
         with open(w2v_emb_fname,"wb") as fo:
             pickle.dump([embedding_matrix, words_set],fo)
 
-    w2v_dim = len(embedding_matrix[1])
-    id_to_word = {i:w for w,i in word_to_id.items()}
-    vae_model = lstm_vae(
-                        maxlen=maxlen,
+    vae_model = LstmVae(maxlen=maxlen,
                         batch_size=batch_size,
                         intermediate_dim=intermediate_dim,
                         latent_dim=latent_dim,
@@ -188,7 +180,7 @@ if __name__ == '__main__':
                  "words_num":len(words_set),
                  "intermediate_dim":intermediate_dim,
                  "latent_dim":latent_dim,
-                 "w2v_dim":w2v_dim,
+                 "w2v_dim":len(embedding_matrix[1]),
                  "is_reversed":str(is_reversed),
                  "mecab_lv":mecab_lv,
                  "use_conjugated":str(use_conjugated)
@@ -197,6 +189,11 @@ if __name__ == '__main__':
     with open(save_w2i_fname, "wb") as fo:
         pickle.dump([word_to_id, is_reversed], fo)
 
+    sampling_obj = Inference(gen,
+                             maxlen,
+                             latent_dim,
+                             word_to_id,
+                             is_reversed)
     es_cb = EarlyStopping(patience=30,
                           verbose=1)
     print_callback = LambdaCallback(on_epoch_end=on_epoch_end)
